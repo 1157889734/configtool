@@ -1,0 +1,501 @@
+//#include "conio.h"
+#include "stdio.h"
+#include "stdlib.h"
+#include "time.h"
+#include "pthread.h"
+#include "onvifapi.h"
+#include "unistd.h"
+
+#if 0
+
+int main1()
+{
+    //soap_init();
+    printf("Enter OnvifClient\n");
+
+    return 0;
+}
+
+int main()  
+{  
+    struct soap *soap;  
+    struct wsdd__ProbeType      req;  
+    struct __wsdd__ProbeMatches resp;  
+    struct wsdd__ScopesType     sScope;  
+    struct SOAP_ENV__Header     header;  
+    static int sUuidCh = 0;
+    int count  = 0;  
+    int result = 0; 
+    time_t tnow = 0;
+    struct tm * sttime = NULL;
+
+      
+    char guid_string[100];  
+    char str_wsa__to[] = "urn:schemas-xmlsoap-org:ws:2005:04:discovery";
+    char str_wsa__Action[] = "http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe"; 
+    char str_wsa_MessageID[64] = {0};
+  
+    soap = soap_new();   
+    if(soap==NULL)  
+    {  
+        return -1;  
+    }  
+   
+    soap_set_namespaces(soap, namespaces);   
+  
+    memset(str_wsa_MessageID, 0x0, 64);
+    
+    while (1)
+    {
+        printf("===== Send probe\n");
+
+        soap->recv_timeout = 5;      //超过5秒钟没有数据就退出  
+        soap_default_SOAP_ENV__Header(soap, &header);  
+        /*
+        tnow =time(NULL);
+        sttime=localtime(&tnow);
+        memset(str_wsa_MessageID, 0x0, 64);
+        sprintf(str_wsa_MessageID, "uuid:4c1de2d1-dbd9-49ce-a467-%0.2x%02x%02x%02x%02x%02x", (sttime->tm_year+1900) & 0xFF ,
+                                sttime->tm_mon + 1, sttime->tm_mday, sttime->tm_hour, sttime->tm_min, sttime->tm_sec);
+        */
+        header.wsa__MessageID = str_wsa_MessageID; 
+        sUuidCh++;
+        if ( sUuidCh >= 2 )
+        {
+            sUuidCh = 0;
+        }
+        
+        header.wsa__To     = str_wsa__to;  
+        header.wsa__Action = str_wsa__Action; 
+
+        soap->header = &header;  
+      
+        soap_default_wsdd__ScopesType(soap, &sScope);  
+        sScope.__item = "";  
+        soap_default_wsdd__ProbeType(soap, &req);  
+        req.Scopes = &sScope;  
+        req.Types = "";  
+
+        result = soap_send___wsdd__Probe(soap, "soap.udp://239.255.255.250:3702", NULL, &req);  
+      
+        do{  
+            result = soap_recv___wsdd__ProbeMatches(soap, &resp);   
+            if (soap->error)   
+            {   
+                //cout<<"soap error:"<<soap->error<<soap_faultcode(soap)<<"---"<<soap_faultstring(soap)<<endl;   
+                printf("soap break: %d, %s --- %s \n", soap->error, soap_faultcode(soap), soap_faultstring(soap));
+                result = soap->error;   
+                break;  
+            }   
+            else  
+            {  /*
+                printf("=========================================\n");
+                printf("Match size: %d\n", resp.wsdd__ProbeMatches->__sizeProbeMatch);
+                printf("xsd-unsignedInt: %d\n", resp.wsdd__ProbeMatches->ProbeMatch->MetadataVersion);
+                printf("scopes item: %s\n",resp.wsdd__ProbeMatches->ProbeMatch->Scopes->__item);
+                printf("QName: %s\n",resp.wsdd__ProbeMatches->ProbeMatch->Types);  
+                printf("xsd:string:%s\n", resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.Address); */
+                //printf("xsd:QName:%s\n", *(resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.PortType));  
+                //printf("wsa:ServiceNameType: %s\n", resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.ServiceName->__item);  
+                //printf("wsa:ServiceNameType: %s\n", resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.ServiceName->__anyAttribute);
+                //printf("wsa:ServiceNameType: %s\n", resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.ServiceName->PortName);
+                //printf("sequence of elements: %d\n" ,resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.__size); 
+                //printf("xsd:anyType: %s\n", resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.__anyAttribute);  
+                //printf("endpoint any: %s\n", *(resp.wsdd__ProbeMatches->ProbeMatch->wsa__EndpointReference.__any));  
+                printf("wsdd:UriListType: %s\n", resp.wsdd__ProbeMatches->ProbeMatch->XAddrs);
+            }  
+        }while(1);  
+    }
+  
+    soap_destroy(soap); // remove deserialized class instances (C++ only)   
+    soap_end(soap);     // clean up and remove deserialized data  
+    soap_done(soap);  
+  
+    return result;  
+}
+
+//void Onvif_GetProfiles()
+void main3()
+{
+    struct soap *soap; 
+    struct SOAP_ENV__Header header; 
+    struct _trt__GetProfiles trt__GetProfiles;
+    struct _trt__GetProfilesResponse trt__GetProfilesResponse;
+    struct _trt__GetStreamUri trt__GetStreamUri;
+    struct _trt__GetStreamUriResponse trt__GetStreamUriResponse;
+    char tokenfname[15] = {0};
+    
+    int result = 0;
+    int i      = 0;
+        
+    soap = soap_new();   
+    if(soap==NULL)  
+    {  
+        return -1;  
+    }  
+   
+    soap_set_namespaces(soap, namespaces);
+    
+    soap->recv_timeout = 5;      //超过5秒钟没有数据就退出  
+    soap_default_SOAP_ENV__Header(soap, &header);  
+/*    
+    result = soap_call___trt__GetProfile(soap, "http://192.168.60.108/onvif/device_service", NULL, 
+                                       p_trt__GetProfile, p_trt__GetProfileResponse);
+*/
+    result = soap_call___trt__GetProfiles(soap, "http://192.168.60.108/onvif/device_service", NULL, 
+                                       &trt__GetProfiles, &trt__GetProfilesResponse);
+    if ( soap->error  )
+    {
+        printf("Get Profile Error\n");
+        return ;
+    }
+    else
+    {
+        printf("Get Success\n");
+        //printf("GetProfile: %s\n", p_trt__GetProfiles->dummy);
+        //printf("GetProfileResponse: Name  = %s\n", p_trt__GetProfileResponse->Profile->Name);
+        printf("GetProfileResponse: sizeprofiles = %d\n", trt__GetProfilesResponse.__sizeProfiles);
+        for ( i = 0; i < trt__GetProfilesResponse.__sizeProfiles; i++)
+        {
+            printf("GetProfileResponse: profile[%d] token = %s\n", i,trt__GetProfilesResponse.Profiles[i].token);
+
+            memset(tokenfname, 0x0, 15);
+            memcpy(tokenfname, trt__GetProfilesResponse.Profiles[0].token, strlen(trt__GetProfilesResponse.Profiles[0].token));
+            trt__GetStreamUri.ProfileToken = tokenfname;
+
+            //trt__GetStreamUri.StreamSetup->Stream
+
+            result = soap_call___trt__GetStreamUri(soap, "http://192.168.60.108/onvif/device_service", NULL, 
+                                                       &trt__GetStreamUri, &trt__GetStreamUriResponse);
+            
+            if ( soap->error )
+            {
+                printf("GetStreamUri Error\n");
+                return;
+            }
+            else
+            {
+                printf("GetStreamUri  %s\n", trt__GetStreamUriResponse.MediaUri->Uri);
+                return;
+            }
+
+    
+            
+        }
+    }
+
+
+    soap_destroy(soap); // remove deserialized class instances (C++ only)   
+    soap_end(soap);     // clean up and remove deserialized data  
+    soap_done(soap);  
+    return;
+}
+
+void main4()
+{
+    struct soap *soap; 
+    struct SOAP_ENV__Header header; 
+    struct _trt__GetStreamUri trt__GetStreamUri;
+    struct _trt__GetStreamUriResponse trt__GetStreamUriResponse;
+    struct tt__StreamSetup st_tt__StreamSetup;
+    char * tokenfname = "000";
+    int result = 0;
+
+
+    soap = soap_new();   
+    //soap = soap_new20817();
+    if(soap==NULL)  
+    {  
+        return -1;  
+    }  
+   
+    soap_set_namespaces(soap, namespaces);
+    
+    soap->recv_timeout = 5;      //超过5秒钟没有数据就退出  
+    soap_default_SOAP_ENV__Header(soap, &header); 
+
+    soap_default__trt__GetStreamUri(soap, &trt__GetStreamUri);
+    soap_default_tt__StreamSetup(soap,  &st_tt__StreamSetup);
+
+    trt__GetStreamUri.ProfileToken = tokenfname;
+    trt__GetStreamUri.StreamSetup  = &st_tt__StreamSetup;
+    //trt__GetStreamUri.StreamSetup->Transport->Protocol = tt__TransportProtocol__UDP;
+    //trt__GetStreamUri.StreamSetup->Stream = 
+    result = soap_call___trt__GetStreamUri(soap, "http://192.168.60.108/onvif/device_service", NULL, 
+                                       &trt__GetStreamUri, &trt__GetStreamUriResponse);
+    if ( soap->error  )
+    {
+        printf("Get Profile Error\n");
+        return ;
+    }
+    else
+    {
+        printf("Get Success\n");
+    }
+}
+#endif
+
+void PTZCtlr()
+{
+    int channel = 0;
+    char cmd = 0;
+
+    printf("Enter PTZCtrl......\n");
+    printf("Input Cam Channel:");
+    scanf("%d", &channel);
+    getchar();
+    printf("Channel : %d\n", channel);
+
+    while(1)
+    {
+        printf("Input Command:\n\
+                      u - start up; \n\
+                      d - start down; \n\
+                      l - start left; \n\
+                      r - start rigth; \n\
+                      s - stop move;\n\
+                      i - zoom in;\n\
+                      o - zoom out;\n\
+                      e - stop zoom\n\
+                      q - quit\n");
+        cmd = getchar();
+        getchar();
+        //scanf("%c",cmd);
+
+        switch(cmd)
+        {
+            case 'u':
+                printf("Move up\n");
+                ONVIF_StartContinuousMove(channel, E_OMT_UP);
+                break;
+            case 'd':
+                printf("Move down\n");
+                ONVIF_StartContinuousMove(channel, E_OMT_DN);
+                break;
+            case 'l':
+                printf("Move left\n");
+                ONVIF_StartContinuousMove(channel, E_OMT_LT);
+                break;
+            case 'r':
+                printf("Move right\n");
+                ONVIF_StartContinuousMove(channel, E_OMT_RT);
+                break;
+            case 's':
+                printf("Stop Move\n");
+                ONVIF_StopContinuousMove(channel);
+                break;
+            case 'i':
+                printf("Zoom In\n");
+                ONVIF_StartContinuousZoom(channel,E_OZT_IN);
+                break;
+            case 'o':
+                printf("Zoom In\n");
+                ONVIF_StartContinuousZoom(channel,E_OZT_OUT);
+                break;
+            case 'e':
+                printf("Stop Move\n");
+                ONVIF_StopContinuousZoom(channel);
+                break;
+            case 'q':
+                printf("quit\n");
+                return;
+            default:
+                break;
+        }
+    }
+    
+    return;
+}
+
+void PresetCtrl()
+{
+    int channel = 0;
+    char cmd = 0;
+    int param = 0;
+
+    printf("Enter PresetCtrl......\n");
+    printf("Input Cam Channel:");
+    scanf("%d", &channel);
+    getchar();
+    printf("Channel : %d\n", channel);
+    
+    while(1)
+    {
+        printf("Input Command:\n\
+                      a - add ; \n\
+                      d - delete; \n\
+                      s - show all; \n\
+                      g - goto; \n\
+                      q - quit\n");
+        cmd = getchar();
+        getchar();
+        //scanf("%c",cmd);
+
+        switch(cmd)
+        {
+            case 'a':
+                printf("Input Add No:");
+                scanf("%d", &param);
+                getchar();
+                printf("submit Add No:%d\n", param);
+                ONVIF_SetCamPreset(channel, param);
+                break;
+            case 'd':
+                printf("Delete");
+                break;
+            case 's':
+                printf("Disp All Preset\n");
+                ONVIF_GetAllPreset(channel);
+                break;
+            case 'g':
+                printf("Goto No:");
+                scanf("%d", &param);
+                getchar();
+                printf("submit Goto No:%d\n", param);
+                ONVIF_GotoPreset(channel,param);
+                break;
+            case 'q':
+                printf("quit\n");
+                return;
+            default:
+                break;
+
+        }
+    }
+    return;
+}
+
+int FocusCtrl()
+{
+    char cmd = '\0';
+    int  channel = 0;
+    while(1)
+    {
+        printf("Enter IMG Focus!  Input channel:");
+        scanf("%d", &channel);
+        getchar();
+        printf("submit channel: %d\n", channel);
+
+        while(1)
+        {
+            printf("Input cmd( n - focus near; f - focus far; s - stop; q - quit):");
+            cmd = getchar();
+            getchar();
+            printf("submit cmd: %c\n", cmd);
+            switch (cmd)
+            {
+                case 'n':
+                    ONVIF_StartContinuousFocus(channel,E_OFT_NEAR);
+                    break;
+                case 'f':
+                    ONVIF_StartContinuousFocus(channel,E_OFT_FAR);
+                    break;
+                case 's':
+                    ONVIF_StopContinuousFocus(channel);
+                    break;
+                case 'q':
+                    return 0;
+                default:
+                    break;
+            }
+            
+        }
+    }
+}
+
+int main()
+{
+    int num = 0;
+    int i   = 0;
+    int j   = 3;
+    ST_ONVIF_CAMINFO_SET  stParam;
+    struct tm * sttime;
+    time_t t = 0;
+    char * addr105 = "http://192.168.60.105/onvif/device_service";
+    char cmd = '\0';
+    int  channel = 0;
+    int  no = 0;
+    int  menu = 0;
+    
+    ONVIF_Init("admin", "12345", NULL);
+
+    t =time(NULL);
+    sttime=localtime(&t);
+    printf("second:%d\n",sttime->tm_sec);
+    printf("minute:%d\n",sttime->tm_min);
+    printf("hour:%d\n", sttime->tm_hour);
+    printf("mday:%d\n", sttime->tm_mday);
+    printf("month:%d\n",sttime->tm_mon+1);
+    printf("year:%d\n", sttime->tm_year+1900);
+
+    //ONVIF_SetCamTime_Test(sttime, addr105);
+    //while(j--)
+    
+    while(1)
+    {
+        ONVIF_StartProbe();
+
+        sleep(5);
+
+        num = ONVIF_GetChNum();
+        printf("Camera Number: %d\n", num);
+        if ( num == 0 )  continue;
+        
+        for ( i = 0; i < MAX_ONVIF_CAM_NUM, num > 0; i++ )
+        {
+            memset(&stParam, 0x0, sizeof(ST_ONVIF_CAMINFO_SET));
+            if ( 0 == ONVIF_GetChInfo(i, &stParam) )
+            {
+                num--;
+                printf("****************   Result   ****************\n");
+                printf("main rtsp: %s\n", stParam.stCamMainVideo.acRtspUri);
+                printf("sub rtsp : %s\n", stParam.stCamSubVideo.acRtspUri);
+                printf("SnapShort: %s\n", stParam.stCamMainVideo.acSnapShortUri);
+                printf("M Width  : %d\n", stParam.stCamMainVideo.iWidth);
+                printf("S Width  : %d\n", stParam.stCamSubVideo.iWidth);
+                printf("M Height : %d\n", stParam.stCamMainVideo.iHeight);
+                printf("S Height : %d\n", stParam.stCamSubVideo.iHeight);
+                printf("M iFps   : %d\n", stParam.stCamMainVideo.iFps);
+                printf("S iFps   : %d\n", stParam.stCamSubVideo.iFps);
+                printf("M BitRate: %d\n", stParam.stCamMainVideo.iEncBitRate);
+                printf("S BitRate: %d\n", stParam.stCamSubVideo.iEncBitRate);
+                printf("********************************************\n");
+            }
+        }
+
+        PrintServices();
+
+        printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n\n");
+        break;
+    }
+
+
+#if 1
+
+    while ( 1 )
+    {
+        printf("Input Menu: 1 - PTZ Ctrl; 2 - Preset; 3 - Focus\n");
+        scanf("%d", &menu);
+        getchar();
+        printf("Menu: %d\n", menu);
+
+        switch ( menu )
+        {
+            case 1:
+                PTZCtlr();
+                break;
+            case 2:
+                PresetCtrl();
+                break;
+            case 3:
+                FocusCtrl();
+                break;
+            default:
+                break;
+        }
+    }
+#endif
+    return 0;
+}
+
+
